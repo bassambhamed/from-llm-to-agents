@@ -39,8 +39,8 @@ git --version
 
 ### Cloner le dépôt
 ```bash
-git clone <URL_DU_DEPOT> from-llm-to-agent
-cd from-llm-to-agent
+git clone https://github.com/bassambhamed/from-llm-to-agents.git
+cd from-llm-to-agents
 ```
 
 ---

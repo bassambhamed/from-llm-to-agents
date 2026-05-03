@@ -95,7 +95,7 @@ Chaque module **capitalise** sur le précédent — l'agent du Jour 3 réutilise
 
 ```bash
 # 1. Cloner le dépôt
-git clone https://github.com/bassambhamed/from-llm-to-agent.git
+git clone https://github.com/bassambhamed/from-llm-to-agents.git
 cd from-llm-to-agent
 
 # 2. Créer l'environnement conda et installer les dépendances (root requirements.txt)
