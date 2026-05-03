@@ -38,3 +38,6 @@ requests>=2.31.0
 
 # Tokenizer
 tiktoken>=0.5.0
+
+# .env loader
+python-dotenv>=1.0.0

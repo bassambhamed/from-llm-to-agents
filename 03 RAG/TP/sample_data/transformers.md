@@ -1,33 +1,113 @@
-# Transformer Architecture
+# L'Architecture Transformer : Une Plongée Analytique et Mathématique en Profondeur
 
-## Overview
-The Transformer architecture was introduced by Vaswani et al. in the 2017 paper
-"Attention Is All You Need". It replaced recurrent neural networks (RNNs) with
-self-attention mechanisms, enabling parallel processing of sequences.
+## 1. Vue d'ensemble, Contexte Historique et Changement de Paradigme
 
-The key innovation is scaled dot-product attention, which computes attention
-weights between all pairs of tokens simultaneously. This allows capturing
-long-range dependencies without the vanishing gradient problem.
+Avant la publication révolutionnaire de la fin de l'année 2017, le domaine du traitement du langage naturel (NLP) et des tâches dites "Sequence-to-Sequence" (Seq2Seq) était sous l'hégémonie absolue des Réseaux de Neurones Récurrents (RNN), et plus particulièrement de leurs variantes sophistiquées : les LSTM (Long Short-Term Memory) et les GRU (Gated Recurrent Unit). L'architecture standard pour la traduction automatique, par exemple, reposait sur un encodeur RNN qui compressait une phrase entière en un vecteur de contexte fixe (le *hidden state* final), suivi d'un décodeur RNN qui déroulait ce vecteur pour générer la traduction.
 
-## Self-Attention Mechanism
-Self-attention computes three matrices from the input: Query (Q), Key (K), and
-Value (V). The attention output is computed as softmax(QK^T / sqrt(d_k)) * V.
+Cependant, cette approche se heurtait à deux murs architecturaux infranchissables :
+Premièrement, le **goulot d'étranglement de l'information**. Forcer une phrase entière, potentiellement très longue, à tenir dans un vecteur de dimension fixe entraînait une perte d'information désastreuse, causant l'amnésie des premiers mots de la phrase lors du traitement des derniers. Des mécanismes d'attention avaient bien été greffés sur ces RNN (comme l'attention de Bahdanau ou de Luong) pour permettre au décodeur de "regarder" différentes parties de l'encodeur à chaque étape, mais ils ne réglaient pas le second problème.
+Deuxièmement, la **séquentialité inhérente**. Par définition, un RNN traite le token (mot ou sous-mot) à la position $t$ uniquement après avoir calculé l'état caché de la position $t-1$. Cette dépendance temporelle stricte rend toute parallélisation impossible au sein d'une même séquence. À l'ère où les processeurs graphiques (GPU) et les TPU brillent par leur capacité à exécuter des milliers d'opérations simultanément, les RNN sous-utilisaient massivement le matériel disponible, rendant l'entraînement sur de gigantesques corpus de données (le "Big Data") horriblement lent et coûteux.
 
-Multi-head attention runs multiple attention operations in parallel, each with
-different learned projections. This allows the model to attend to information
-from different representation subspaces at different positions.
+C'est dans ce contexte que des chercheurs de Google Brain et Google Research ont publié l'article *"Attention Is All You Need"* (Vaswani et al.). Le titre lui-même est une déclaration de guerre : il suggère d'abandonner totalement la récurrence (les RNN) et les convolutions (les CNN) pour ne conserver *que* le mécanisme d'attention. Ce pari audacieux a donné naissance à l'architecture **Transformer**. En s'appuyant sur l'auto-attention (Self-Attention), le Transformer permet à chaque mot de la séquence de se connecter directement à n'importe quel autre mot, quelle que soit la distance qui les sépare, et ce, en une seule opération matricielle massivement parallélisable. Ce changement de paradigme a non seulement pulvérisé les scores de l'état de l'art en traduction automatique, mais a posé les fondations algorithmiques de l'intelligence artificielle générative moderne (LLMs), de BERT à GPT-4, en passant par Llama et Claude.
 
-## Encoder-Decoder Structure
-The original Transformer has an encoder-decoder structure. The encoder processes
-the input sequence bidirectionally. The decoder generates the output sequence
-autoregressively, attending to both its own previous outputs and the encoder's
-representations via cross-attention.
+## 2. L'Anatomie du Mécanisme de "Self-Attention" (Auto-Attention)
 
-Modern variants include encoder-only models (BERT), decoder-only models (GPT),
-and encoder-decoder models (T5, BART).
+Le cœur battant du Transformer, et l'innovation qui lui confère toute sa puissance, est le mécanisme d'Auto-Attention (Self-Attention). Contrairement à l'attention traditionnelle qui connectait un décodeur à un encodeur, la *Self-Attention* permet à une séquence de s'analyser elle-même. Pour chaque token en entrée, le modèle va calculer dynamiquement à quel point il doit prêter attention à tous les autres tokens de la même séquence pour mettre à jour sa propre représentation. Ce processus résout magistralement la désambiguïsation lexicale (ex: comprendre si "avocat" désigne le fruit ou le juriste en regardant les mots voisins).
 
-## Positional Encoding
-Since self-attention is permutation-invariant, positional information must be
-injected explicitly. The original paper uses sinusoidal positional encodings.
-Modern models often use learned positional embeddings or relative position
-encodings like RoPE (Rotary Position Embedding) and ALiBi.
+### 2.1. Requêtes (Queries), Clés (Keys) et Valeurs (Values) : L'Analogie de la Recherche
+Pour chaque token de la séquence d'entrée (préalablement transformé en un vecteur continu appelé *embedding* de dimension $d_{model}$, généralement 512 dans le papier original), le Transformer ne va pas utiliser ce vecteur tel quel. Il va le multiplier par trois matrices de poids distinctes ($W^Q$, $W^K$, et $W^V$), apprises lors de l'entraînement, pour créer trois nouveaux vecteurs : la Requête ($Q$), la Clé ($K$) et la Valeur ($V$).
+
+Pour comprendre leur rôle, il faut emprunter l'analogie des systèmes de recherche d'information (comme les bases de données) :
+*   **La Requête (Query - $Q$)** : C'est ce que le token actuel recherche. Imaginez que le token actuel est le mot "il". Sa requête pourrait mathématiquement signifier : "Je suis un pronom singulier masculin, je cherche à identifier l'entité masculine singulière qui est le sujet de l'action pour m'attacher à elle".
+*   **La Clé (Key - $K$)** : C'est ce que chaque token de la phrase utilise pour s'identifier auprès des autres. Le mot "chat" dans la même phrase possédera une clé signifiant : "Je suis un nom commun, masculin, singulier, une entité animée".
+*   **La Valeur (Value - $V$)** : C'est le contenu sémantique réel, le sens profond du token, qui sera extrait et agrégé si la Clé correspond à la Requête.
+
+### 2.2. L'Attention Scalaire par Produit Scalaire (Scaled Dot-Product Attention)
+Une fois ces vecteurs Q, K et V calculés pour chaque token, l'algorithme doit évaluer les affinités. Pour savoir à quel point le token $A$ doit prêter attention au token $B$, le modèle calcule le **produit scalaire (dot product)** entre la Requête de $A$ ($Q_A$) et la Clé de $B$ ($K_B$). Mathématiquement, le produit scalaire est une mesure de similarité : plus les vecteurs pointent dans la même direction dans leur espace multidimensionnel, plus le score est élevé. Ce calcul est fait simultanément pour toutes les paires de la séquence via une multiplication matricielle massive : $Q 	imes K^T$.
+
+Cependant, il y a un piège mathématique. Si la dimension des vecteurs clés ($d_k$) est grande, le produit scalaire peut produire des valeurs extrêmement grandes (positives ou négatives). Lorsque ces grandes valeurs sont passées dans la fonction *softmax* (qui transforme les scores bruts en un ensemble de probabilités allant de 0 à 1 et dont la somme fait 1), la fonction s'ature. Elle va attribuer une probabilité de presque $1.0$ à la valeur la plus grande, et $0.0$ à toutes les autres. Pire encore, dans ces zones saturées, le gradient (la dérivée) de la fonction softmax devient infime (phénomène de *vanishing gradient*), ce qui bloque l'apprentissage de l'algorithme par rétropropagation.
+
+Pour contrecarrer cela, Vaswani et al. ont introduit un facteur de mise à l'échelle (*scaling*). Ils divisent le résultat du produit scalaire par la racine carrée de la dimension de la clé ($\sqrt{d_k}$). La formule complète devient donc l'équation reine du NLP moderne :
+
+$$ 	ext{Attention}(Q, K, V) = 	ext{softmax}\left(rac{QK^T}{\sqrt{d_k}}ight) V $$
+
+Une fois la matrice de probabilités calculée (la matrice d'attention), chaque ligne de cette matrice représente la distribution d'attention d'un token sur le reste de la phrase. On multiplie enfin cette matrice par la matrice des Valeurs ($V$). Ainsi, la nouvelle représentation d'un mot devient une somme pondérée des Valeurs de tous les mots de la phrase, où les poids sont dictés par l'attention.
+
+### 2.3. L'Attention Multi-Têtes (Multi-Head Attention) : Diversifier les Perspectives
+Si nous n'utilisions qu'une seule opération d'attention globale, le modèle serait forcé de faire des compromis. Il devrait choisir entre concentrer son attention sur la syntaxe (l'accord sujet-verbe) ou sur la sémantique (le sens des mots). Pour résoudre cela, le Transformer n'utilise pas un seul ensemble Q, K, V, mais projette l'entrée initiale $h$ fois dans des sous-espaces de dimension inférieure (généralement $h=8$ têtes dans le modèle de base).
+
+C'est ce qu'on appelle la **Multi-Head Attention**. Le modèle calcule l'attention de manière strictement indépendante pour chacune des 8 têtes. 
+*   La tête 1 peut apprendre à devenir un expert syntaxique, reliant les verbes à leurs sujets.
+*   La tête 2 peut se spécialiser dans la résolution des anaphores (comprendre à quoi renvoie le pronom "le").
+*   La tête 3 peut chercher les mots de négation qui inversent le sens de la phrase, etc.
+
+Chaque tête opère sur des dimensions réduites ($d_k = d_v = d_{model} / h = 512 / 8 = 64$), ce qui garantit que le coût computationnel total reste rigoureusement identique à celui d'une attention à tête unique qui opérerait sur la pleine dimension. À la fin du processus, les sorties des 8 têtes sont concaténées (reconstituant un vecteur de dimension 512) et multipliées par une dernière matrice de projection linéaire ($W^O$) pour mélanger harmonieusement les informations glanées par chaque "expert" avant de les passer à la couche suivante.
+
+## 3. Structure Détaillée de l'Architecture : L'Encodeur et le Décodeur
+
+L'architecture originelle du Transformer, conçue spécifiquement pour la traduction (du type anglais vers français), adopte une structure classique en deux grands blocs imbriqués : un Encodeur, qui "lit" et "comprend" la phrase source, et un Décodeur, qui "écrit" la traduction cible étape par étape. Ce qui distingue le Transformer, c'est que ces deux macro-blocs sont eux-mêmes composés d'un empilement de blocs de traitement identiques (généralement $N=6$ couches empilées).
+
+### 3.1. Anatomie du Bloc Encodeur (Encoder Block)
+Le but de l'encodeur n'est pas de deviner quoi que ce soit, mais de transformer la séquence de tokens d'entrée en une "représentation riche en contexte". Pour une phrase de longueur $L$, l'encodeur prend en entrée une matrice de dimension $L 	imes d_{model}$ et ressort une matrice de taille strictement identique. Chaque couche de l'encodeur est subdivisée en deux sous-modules cruciaux :
+
+1.  **La couche de Self-Attention Multi-Têtes (Multi-Head Self-Attention)** : C'est ici que s'opère la magie bidirectionnelle. Chaque token regarde librement tous les autres tokens (avant et après lui) grâce au mécanisme décrit dans la section 2.
+2.  **Le Réseau de Neurones Feed-Forward Positionnel (Position-wise FFN)** : Après l'attention, chaque token passe, de manière totalement indépendante et parallèle, à travers un perceptron multicouche classique. Ce réseau est composé de deux transformations linéaires séparées par une fonction d'activation non linéaire (initialement ReLU, souvent remplacée aujourd'hui par GELU ou SwiGLU). Mathématiquement : $FFN(x) = \max(0, xW_1 + b_1)W_2 + b_2$. Cette étape est vitale : l'attention permet aux tokens de se *mélanger* et d'échanger des informations, mais le FFN permet de *traiter* et d'enrichir l'information individuelle de chaque token de manière non linéaire. Généralement, la dimension interne de ce FFN est étendue par un facteur 4 (passant de 512 à 2048) avant d'être recompressée à 512.
+
+**L'Art de la Stabilité : Add & Norm**
+Autour de ces deux sous-modules gravitent deux éléments architecturaux indispensables à l'entraînement de réseaux très profonds. Premièrement, une **connexion résiduelle** (Residual Connection) qui contourne le sous-module en ajoutant l'entrée directement à la sortie : $Sortie = SousModule(x) + x$. Cela permet de créer des "autoroutes" pour les gradients lors de la rétropropagation, évitant ainsi la disparition du gradient et garantissant que l'information originale n'est pas perdue. Deuxièmement, une **Normalisation de Couche** (Layer Normalization). Contrairement à la Batch Normalization utilisée en vision par ordinateur, la LayerNorm stabilise les valeurs d'activation en calculant la moyenne et la variance *sur la dimension des caractéristiques* pour chaque token individuellement. L'enchaînement est donc : `Sortie = LayerNorm(x + Sublayer(x))`.
+
+### 3.2. Anatomie du Bloc Décodeur (Decoder Block)
+Le décodeur partage des similarités frappantes avec l'encodeur, mais son fonctionnement est fondamentalement contraint par la tâche de génération. Il doit produire la phrase traduite de manière **autorégressive**, c'est-à-dire un mot après l'autre, en se basant sur le contexte source et sur les mots qu'il a *déjà* générés. Chaque couche du décodeur possède non pas deux, mais trois sous-modules :
+
+1.  **L'Auto-Attention Masquée (Masked Multi-Head Self-Attention)** : Lors de l'entraînement, on fournit au décodeur la séquence cible complète (la bonne traduction) décalée d'un cran vers la droite. Cependant, pour que le modèle apprenne à prédire le futur, il ne faut surtout pas que le token à la position $t$ puisse "tricher" en regardant le token à la position $t+1$. On applique donc un *masque causal* à la matrice des scores d'attention. Concrètement, c'est une matrice triangulaire supérieure remplie de $-\infty$. Avant d'appliquer le softmax, on ajoute ce masque aux scores d'attention bruts. Lors du passage au softmax, $e^{-\infty}$ devenant 0, l'attention vers les mots futurs est mathématiquement annihilée (pondération de 0). Le modèle est aveuglé quant au futur.
+2.  **L'Attention Croisée (Encoder-Decoder Multi-Head Cross-Attention)** : C'est le pont central du Transformer. C'est ici que la langue cible rencontre la langue source. Dans ce sous-module, les **Requêtes (Q)** proviennent de la couche précédente du décodeur (l'état actuel de la traduction en cours), tandis que les **Clés (K)** et les **Valeurs (V)** proviennent exclusivement de la sortie finale de l'encodeur (la représentation figée et riche de la phrase source d'origine). Cela permet au décodeur, à chaque étape de la génération, d'aller chercher précisément les éléments pertinents dans la phrase de départ. C'est l'équivalent moderne de l'alignement en traduction automatique.
+3.  **Le Réseau Feed-Forward Positionnel (FFN)** : Exactement le même mécanisme que dans l'encodeur, appliqué sur chaque position indépendamment.
+
+Tout comme l'encodeur, chaque sous-module du décodeur est enveloppé par des connexions résiduelles et une normalisation de couche (Add & Norm), assurant une stabilité numérique parfaite à travers l'ensemble de l'immense graphe de calcul computationnel.
+
+## 4. Le Défi Séquentiel : L'Encodage Positionnel (Positional Encoding)
+
+La force suprême du mécanisme de Self-Attention est paradoxalement sa plus grande faiblesse théorique : il est purement **invariant par permutation**. Si vous mélangez aléatoirement l'ordre des mots d'une phrase en entrée d'une couche d'attention stricte, la représentation de sortie pour chaque mot restera identique (elle aura juste changé de place, mais le vecteur sera le même). Le Transformer, à l'état brut, n'a absolument aucune notion de l'ordre des mots, du début ou de la fin d'une séquence. Pour lui, "Le chien mord l'homme" et "L'homme mord le chien" constituent exactement le même "sac de mots" (bag-of-words).
+
+Pour qu'un modèle puisse comprendre la grammaire, la syntaxe et le sens, la position absolue et relative des entités est primordiale. Vaswani et al. ont donc dû injecter un signal artificiel d'information temporelle directement dans les données d'entrée : c'est le rôle de l'**Encodage Positionnel**.
+
+Dans l'architecture originale de 2017, cette approche est déterministe et s'appuie sur des mathématiques continues. Au lieu d'apprendre les positions, les chercheurs ont ajouté au vecteur d'embedding initial de chaque token un "vecteur de position" de même dimension spatiale ($d_{model} = 512$). Ce vecteur est précalculé en utilisant des ondes de fréquences variables, spécifiquement des fonctions sinus et cosinus entrelacées :
+
+*   Pour les dimensions paires ($2i$) du vecteur : $PE_{(pos, 2i)} = \sin(pos / 10000^{2i/d_{model}})$
+*   Pour les dimensions impaires ($2i+1$) : $PE_{(pos, 2i+1)} = \cos(pos / 10000^{2i/d_{model}})$
+
+Où $pos$ est la position absolue du mot dans la phrase et $i$ est la dimension. **Pourquoi des ondes sinusoïdales ?** Parce que pour tout décalage fixe $k$, la position $PE_{pos+k}$ peut toujours être exprimée comme une fonction linéaire de $PE_{pos}$. Cela donne au modèle la garantie mathématique qu'il peut facilement apprendre à s'occuper des relations de positions *relatives* (par exemple, "le mot qui est 3 positions avant moi"), quelle que soit la position absolue dans la phrase.
+
+Cependant, la recherche a énormément évolué depuis 2017. Aujourd'hui, on trouve plusieurs approches majeures qui ont remplacé la sinusoïde classique :
+*   **Les Embeddings de Position Appris (Learned Positional Embeddings)** : Utilisés par des modèles fondateurs comme BERT ou GPT-2, l'idée est de créer un dictionnaire de vecteurs (ex: de 0 à 2048) qui s'apprennent via la descente de gradient, au même titre que les mots. C'est simple, mais le modèle est strictement incapable de traiter une séquence plus longue que ce qu'il a vu à l'entraînement (si la taille limite est 2048, le modèle crash au 2049e mot).
+*   **RoPE (Rotary Position Embedding)** : C'est le standard de facto actuel, utilisé par Llama de Meta, Mistral, et PaLM. Au lieu d'ajouter un vecteur à l'entrée, RoPE applique une rotation mathématique aux vecteurs de Requête et de Clé dans le plan des nombres complexes. La quantité de rotation dépend de la position du token. Le produit scalaire $Q 	imes K$ s'en trouve modifié d'une manière qui encode naturellement la distance relative exacte entre les deux tokens.
+*   **ALiBi (Attention with Linear Biases)** : Plutôt que de modifier les embeddings, ALiBi n'ajoute qu'une simple pénalité linéaire directement sur la matrice des scores d'attention avant le softmax. Plus deux mots sont éloignés, plus leur score brut est diminué. Cela permet une excellente extrapolation sur des textes très longs jamais vus lors de l'entraînement.
+
+## 5. La Famille des Transformers : Évolution Architecturale et Spécialisations
+
+L'architecture encodeur-décodeur de 2017, bien que parfaite pour la traduction, s'est avérée être un outil générique aux applications illimitées. Dans les années qui ont suivi, la communauté de l'IA a déconstruit le Transformer original pour exploiter ses composants individuels, donnant naissance à trois grandes branches d'évolution qui dominent le paysage de l'apprentissage profond actuel.
+
+### 5.1. Les Modèles "Encodeur Seul" (Encoder-only) : La Compréhension Profonde
+Popularisés à la fin 2018 par **BERT** (Bidirectional Encoder Representations from Transformers) de Google, ces modèles suppriment totalement le décodeur. Ils conservent l'encodeur bidirectionnel où chaque mot voit l'intégralité du contexte gauche et droit simultanément. 
+Pour entraîner un tel modèle sans tâche spécifique, Google a inventé le **Masked Language Modeling (MLM)**. Lors du pré-entraînement, on masque arbitrairement 15% des mots d'un texte gigantesque (Wikipédia, livres), et on demande à l'encodeur de prédire quels mots ont été cachés en se basant sur le contexte complet. L'encodeur devient ainsi un expert ultime de la syntaxe et de la sémantique. Les modèles de type BERT (et ses dérivés optimisés comme RoBERTa ou DeBERTa) excellent dans les tâches discriminatives : classification de textes, analyse de sentiments, détection d'entités nommées (NER) et extraction de réponses factuelles.
+
+### 5.2. Les Modèles "Décodeur Seul" (Decoder-only) : Les Rois de la Génération
+C'est la famille la plus célèbre aujourd'hui, inaugurée par OpenAI avec sa série **GPT** (Generative Pre-trained Transformer) et poursuivie par Llama, Mistral, et Claude. On jette l'encodeur et l'attention croisée, pour ne conserver que la pile de décodeurs autorégressifs avec leur masque causal sacré.
+L'objectif d'entraînement est effroyablement simple mais terriblement efficace : le **Causal Language Modeling (CLM)**, soit prédire le mot suivant, encore et encore, sur des téraoctets de données issues d'internet. Parce qu'ils sont contraints de lire de gauche à droite, ces modèles développent de puissantes capacités d'abstraction et de raisonnement *in-context*. Ce sont ces modèles qui ont démontré des propriétés d'émergence exponentielles en fonction de leur taille (lois d'échelle ou *scaling laws*), devenant les fondations des agents conversationnels et des assistants IA généraux (souvent alignés ensuite via des techniques comme le RLHF - Reinforcement Learning from Human Feedback).
+
+### 5.3. Les Modèles "Encodeur-Décodeur" (Encoder-Decoder) : Le Retour aux Sources
+Certains modèles ont conservé l'architecture biparti originale, en améliorant drastiquement ses capacités générales de pré-entraînement. L'exemple paradigmatique est le modèle **T5** (Text-to-Text Transfer Transformer) de Google, ou encore **BART** de Meta. L'intuition derrière T5 est de convertir absolument n'importe quelle tâche de NLP en un problème de "texte vers texte". Qu'il s'agisse de traduction ("Translate English to German: hello"), de résumé ("Summarize: ...") ou de classification ("Is this positive or negative: ..."), la requête en langage naturel est envoyée à l'encodeur, et le décodeur génère la réponse. Ces architectures restent inégalées pour les tâches complexes de transformation de séquences (Summarization, Paraphrasing).
+
+## 6. Défis Computationnels : Complexité Quadratique et Optimisations Modernes
+
+Aussi puissant soit-il, le Transformer dissimule un immense talon d'Achille algorithmique, souvent qualifié de "goulot d'étranglement quadratique". Ce problème se trouve au cœur du calcul de l'attention par produit scalaire : $Q 	imes K^T$.
+
+Si vous traitez une séquence de $N$ tokens, la matrice des Requêtes $Q$ a une taille $N 	imes d_k$ et la matrice des Clés translatée $K^T$ a une taille $d_k 	imes N$. Leur multiplication génère une matrice d'attention de taille $N 	imes N$. Cela signifie que pour calculer l'attention complète, le modèle doit réaliser $N^2$ opérations (complexité temporelle $O(N^2)$) et stocker dans la mémoire vive de la carte graphique (VRAM) $N^2$ scores d'attention (complexité spatiale $O(N^2)$).
+Si doubler le nombre de paramètres d'un modèle coûte cher, doubler la fenêtre de contexte (le nombre de mots en entrée) est catastrophique. Passer d'un contexte de 2048 tokens à un contexte de 8192 tokens ne multiplie pas le coût par 4, mais par 16. C'est la raison fondamentale pour laquelle les modèles ont été longtemps limités à de courts paragraphes.
+
+Pour surmonter cette barrière critique et atteindre des contextes de 128k voire 1 Million de tokens (comme Gemini 1.5 Pro), l'industrie de l'IA a déployé des trésors d'ingénierie logicielle et de recherche fondamentale :
+
+*   **Le KV-Cache (Key-Value Cache)** : Lors de la génération (inférence) token par token, l'historique des tokens passés ne change pas. Au lieu de recalculer aveuglément les Clés et Valeurs du passé à chaque étape, on les stocke en mémoire RAM. Cela accélère massivement la vitesse de génération, mais consomme d'immenses quantités de VRAM pour les lots importants. L'invention de la GQA (*Grouped Query Attention*) a d'ailleurs permis de réduire la taille de ce cache en forçant plusieurs Requêtes à partager les mêmes paires de Clé-Valeur.
+*   **FlashAttention (v1 et v2)** : Publié par Tri Dao en 2022, c'est une optimisation algorithmique géniale "consciente du matériel" (hardware-aware). FlashAttention réorganise les calculs matriciels en les découpant en "tuiles" (tiling) pour minimiser drastiquement les transferts de données entre la mémoire lente (HBM) et la mémoire ultra-rapide (SRAM) du GPU. Le résultat est mathématiquement identique, mais se calcule nettement plus vite et sans exploser la consommation mémoire. FlashAttention est la raison pour laquelle les grands contextes sont devenus possibles sur le matériel actuel.
+*   **L'Après-Transformer : Les Modèles d'Espace d'État (SSM)** : Face à l'impasse quadratique pure de l'attention, de nouvelles architectures cherchent carrément à remplacer le mécanisme central de Vaswani. L'architecture **Mamba** (fin 2023), basée sur les modèles d'état structurés, propose une sélection dynamique de l'information permettant d'atteindre les performances des Transformers avec une complexité temporelle et spatiale strictement linéaire $O(N)$, marquant peut-être le début du prochain grand changement de paradigme.
+

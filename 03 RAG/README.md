@@ -52,11 +52,11 @@ Le support couvre **7 parties** :
 
 ### TP 3 — Pipeline RAG complet (3 h)
 
-Notebook : **`TP/tp3-rag-pipeline-complet.ipynb`**
+Notebook : **`TP/tp3-rag-pipeline-complet.ipynb`** *(97 cellules, 4 parties)*
 
-| Temps | Partie | Livrables |
+| Temps | Partie | Contenu détaillé |
 |---|---|---|
-| **1 h 15** | **A — Basic RAG** | Loaders LangChain (PDF, Markdown, Web) + Splitters (`RecursiveCharacterTextSplitter`, `MarkdownHeaderTextSplitter`) + Contextual Retrieval + embeddings + Chroma + BM25 + RRF + cross-encoder rerank + génération via Groq |
+| **1 h 15** | **A — Basic RAG (8 étapes)** | **§1** Loaders LangChain : Markdown + démos exécutées **PDF arXiv** (`PyPDFLoader`) et **Web** (`WebBaseLoader`) · **§2** Chunking : récursif → length-based (`TokenTextSplitter`, `SentenceTransformersTokenTextSplitter`) → démo *Tokenizer Mismatch* (tiktoken vs HF) → `MarkdownHeaderTextSplitter` → Contextual Retrieval → **Chonkie Semantic + Agentic (`SlumberChunker` sur Groq)** · **§3** Embeddings : MiniLM + similarité cosine/dot/L2 + tableau de choix du modèle (BGE-M3, Jina v2…) + **multimodal** (CLIP/Qwen2-VL, théorique) · **§4** Vector store : Chroma + **démo FAISS `IndexFlatL2`** · **§5** Retrieval hybride BM25 + RRF · **§6** Cross-encoder rerank · **§7** Prompt augmenté · **§8** Génération via LangChain **+ variante Python pur (SDK Groq direct)** |
 | **45 min** | **B — Advanced RAG** | Lost-in-the-middle reorder + Query Rewriting + Multi-Query + HyDE, mesurés sur le golden set |
 | **30 min** | **C — Évaluation & Observabilité** | RAGas (Faithfulness, Answer Relevancy, Context Precision/Recall) avec **LLM-juge Llama 3.3 70B via Groq** + cellule LangSmith (optionnelle) |
 | **30 min** | **D — Graph RAG** *(bonus)* | Extraction entités/relations LLM + graphe NetworkX + retrieval local/global + comparaison Vector vs Graph |
@@ -70,15 +70,18 @@ Le TP est fourni à la fois comme **notebook pédagogique** (`TP/tp3-rag-pipelin
 | Composant | Outil | Notes |
 |---|---|---|
 | Loaders | `langchain-community` (`PyPDFLoader`, `WebBaseLoader`, `TextLoader`) | Format `Document` standard |
-| Splitters | `langchain-text-splitters` (`RecursiveCharacterTextSplitter` + `MarkdownHeaderTextSplitter`) | Chunking token-based 500/50 + structure-aware |
+| Splitters classiques | `langchain-text-splitters` (`RecursiveCharacterTextSplitter`, `TokenTextSplitter`, `SentenceTransformersTokenTextSplitter`, `MarkdownHeaderTextSplitter`) | Chunking caractère / token / structure-aware |
+| Splitters avancés | **`chonkie`** (`SemanticChunker`, `SlumberChunker` + `GroqGenie`) | Sémantique et **agentique** (LLM décide les frontières) |
 | Embeddings | `sentence-transformers/all-MiniLM-L6-v2` (384 dim) | Bi-encoder, local, gratuit |
 | Reranker | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Cross-encoder, local, gratuit |
-| Vector store | **ChromaDB** (HNSW, in-memory) | Démarrage instantané |
+| Vector store | **ChromaDB** (HNSW, in-memory) + **FAISS** (`IndexFlatL2`, démo) | Démarrage instantané |
 | Sparse retrieval | `rank-bm25` | Fusion via RRF |
-| **LLM** | **`llama-3.3-70b-versatile` via Groq** | Free tier, OpenAI-compatible, ultra-rapide (LPU) |
+| **LLM** | **`llama-3.3-70b-versatile` via Groq** (LangChain et SDK direct) | Free tier, OpenAI-compatible, ultra-rapide (LPU) |
 | Évaluation | `ragas` + `langchain-groq` | LLM-as-a-judge avec Llama 3.3 70B |
 | Observabilité | `langsmith` | Traçage end-to-end (optionnel) |
 | Graphe | `networkx` | Détection de communautés (Leiden / Louvain) |
+| Tokenizers | `tiktoken` + `transformers` (HuggingFace `AutoTokenizer`) | Démo *Tokenizer Mismatch* |
+| Configuration | `python-dotenv` | Chargement automatique du `.env` (rag-app) |
 
 > **Pourquoi Groq ?** API **gratuite** (free tier généreux), **OpenAI-compatible** (pattern réutilisable avec OpenAI / Azure / Anthropic / Mistral), **ultra-rapide** (LPUs). Modèle utilisé : `llama-3.3-70b-versatile` (70B paramètres, excellent suivi d'instructions et JSON).
 
@@ -100,6 +103,7 @@ Le TP est fourni à la fois comme **notebook pédagogique** (`TP/tp3-rag-pipelin
 │       └── finetuning.md
 └── rag-app/                           ← application de référence (démo + bac à sable)
     ├── README.md                      ← guide d'installation et d'usage détaillé
+    ├── .env                           ← variables d'environnement (GROQ_API_KEY, modèles)
     ├── api.py                         ← backend FastAPI (endpoints /query, /preview/*, /graph)
     ├── dashboard.py                   ← UI Streamlit (Chat, Comparateur, Graph RAG, Embeddings, KG, Eval)
     ├── rag_engine.py                  ← moteur RAG (Basic + Advanced + Graph)
@@ -119,9 +123,10 @@ export GROQ_API_KEY="gsk_..."
 
 # 2. Installer les dépendances (cf. cellule pip install au début du notebook)
 pip install langchain langchain-community langchain-text-splitters \
-            chromadb sentence-transformers rank_bm25 \
+            chromadb faiss-cpu sentence-transformers rank_bm25 \
+            chonkie groq \
             pypdf beautifulsoup4 requests \
-            tiktoken openai \
+            tiktoken transformers openai \
             ragas datasets \
             networkx matplotlib seaborn scikit-learn
 
@@ -134,10 +139,13 @@ jupyter notebook TP/tp3-rag-pipeline-complet.ipynb
 ```bash
 cd rag-app/
 pip install -r requirements.txt
-export GROQ_API_KEY="gsk_..."
+
+# Renseigner GROQ_API_KEY dans rag-app/.env (créé automatiquement, à éditer)
+#   GROQ_API_KEY=gsk_...
+# Le fichier est chargé automatiquement par python-dotenv au démarrage.
 
 # Terminal 1 — backend FastAPI
-uvicorn api:app --reload
+python api.py            # ou : uvicorn api:app --reload
 
 # Terminal 2 — dashboard Streamlit
 streamlit run dashboard.py

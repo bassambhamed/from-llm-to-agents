@@ -54,10 +54,6 @@ Application full-stack de démonstration du **TP 3** de la formation. Implément
   1. Aller sur **https://console.groq.com**
   2. Se connecter (Google / GitHub) — pas de carte bancaire
   3. *API Keys → Create API Key* — copier la clé `gsk_...`
-  4. Exporter :
-     ```bash
-     export GROQ_API_KEY="gsk_..."
-     ```
 
 ## Installation
 
@@ -71,13 +67,27 @@ python -c "from sentence_transformers import SentenceTransformer, CrossEncoder; 
   CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')"
 ```
 
+## Configuration (.env)
+
+Le dossier contient un fichier **`.env`** (chargé automatiquement par `python-dotenv` au démarrage). Renseignez votre clé Groq :
+
+```dotenv
+GROQ_API_KEY=gsk_votre_cle_ici
+
+# Optionnel — surcharge des modèles par défaut
+# LLM_MODEL=llama-3.3-70b-versatile
+# EMBED_MODEL=all-MiniLM-L6-v2
+# RERANKER_MODEL=cross-encoder/ms-marco-MiniLM-L-6-v2
+```
+
+> Alternative : `export GROQ_API_KEY="gsk_..."` dans le shell — les variables d'environnement priment sur le `.env`.
+
 ## Lancement
 
-Ouvrir **deux terminaux** depuis ce dossier (avec `GROQ_API_KEY` exportée dans les deux) :
+Ouvrir **deux terminaux** depuis ce dossier :
 
 **Terminal 1 — backend FastAPI :**
 ```bash
-export GROQ_API_KEY="gsk_..."
 python api.py            # ou : uvicorn api:app --reload --port 8000
 ```
 

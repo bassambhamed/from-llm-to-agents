@@ -1,0 +1,4 @@
+GROQ_API_KEY=
+USER_AGENT="WorkshopGenIA"
+LANGSMITH_API_KEY=
+LANGSMITH_ENDPOINT=https://api.smith.langchain.com

@@ -65,7 +65,7 @@
 | **Effectif** | 8 à 12 participants |
 | **Langue** | Français (code identifiers en anglais) |
 | **Pré-requis** | Python de base · notion d'API REST · **aucune** connaissance préalable en ML / NLP |
-| **Matériel** | Python 3.10+ · Jupyter · clé API **Groq gratuite** ([console.groq.com](https://console.groq.com)) · Docker Desktop pour TP 4.b |
+| **Matériel** | Python 3.10+ (recommandé : conda env `gai` avec Python 3.11 — voir [`setup.md`](setup.md)) · Jupyter · clé API **Groq gratuite** ([console.groq.com](https://console.groq.com)) · Docker Desktop pour TP 4.b |
 
 ### Progression pédagogique
 
@@ -91,29 +91,37 @@ Chaque module **capitalise** sur le précédent — l'agent du Jour 3 réutilise
 
 ## Quick start
 
-```bash
-# 1. Créer une clé Groq gratuite : https://console.groq.com
-export GROQ_API_KEY="gsk_..."
+> Pour la procédure complète (Git, Anaconda, kernel Jupyter, dépannage), voir **[`setup.md`](setup.md)**.
 
-# 2. Cloner le dépôt
+```bash
+# 1. Cloner le dépôt
 git clone https://github.com/bassambhamed/from-llm-to-agent.git
 cd from-llm-to-agent
 
-# 3. Installer les dépendances (le requirements du TP 3 est le plus complet)
-pip install -r "03 RAG/rag-app/requirements.txt"
+# 2. Créer l'environnement conda et installer les dépendances (root requirements.txt)
+conda create -n gai python=3.11 -y
+conda activate gai
+pip install -r requirements.txt
+
+# 3. Renseigner ses clés API dans .env (à la racine, fichier déjà fourni)
+#    GROQ_API_KEY=gsk_...           ← obligatoire (https://console.groq.com)
+#    TAVILY_API_KEY=...             ← TP 4-a Research Assistant
+#    GOOGLE_CLIENT_ID=... etc.      ← TP 4-a Morning Briefing
+# Le .env est chargé automatiquement par python-dotenv dans chaque notebook.
 
 # 4. Lancer le premier notebook
 jupyter notebook "01 Fondamentaux LLM/TP/tp1-llm-fondamentaux.ipynb"
 ```
 
-> ⚠️ **Sécurité** — Ne jamais coller une clé API dans une cellule de code. Toujours via `os.environ.get()` après un `export` shell ou un fichier `.env` git-ignoré. Le TP 2 contient une démo de **masquage de secrets** (`sk-...`, `gsk_...`, `hf_...`, JWT).
+> ⚠️ **Sécurité** — Ne jamais coller une clé API dans une cellule de code. Toujours via `os.environ.get()` après `load_dotenv()`. Le `.env` doit rester git-ignoré dès qu'il contient de vraies clés. Le TP 2 contient une démo de **masquage de secrets** (`sk-...`, `gsk_...`, `hf_...`, JWT).
 
 ### Lancer l'app de référence (TP 3)
 
 ```bash
 cd "03 RAG/rag-app"
-pip install -r requirements.txt
-export GROQ_API_KEY="gsk_..."
+# La GROQ_API_KEY est lue depuis rag-app/.env (chargé par python-dotenv)
+# Éditer ce fichier au besoin :
+#   GROQ_API_KEY=gsk_...
 
 python api.py                  # Terminal 1 — backend FastAPI sur :8000
 streamlit run dashboard.py     # Terminal 2 — UI Streamlit sur :8501
@@ -168,7 +176,9 @@ Anatomie d'un prompt (4 éléments) · Zero/Few-Shot · CoT · Self-Consistency 
 
 #### TP 3 — Pipeline RAG complet (3 h)
 
-- **Partie A — Basic RAG** (1 h 15) : LangChain loaders + splitters + Contextual Retrieval + ChromaDB + BM25 + RRF + cross-encoder rerank + génération via Groq.
+Notebook **97 cellules**, 4 parties :
+
+- **Partie A — Basic RAG** (1 h 15) : 8 étapes — loaders LangChain (Markdown + démos exécutées **PDF arXiv** et **Web**) · chunking récursif → length-based (`TokenTextSplitter`, `SentenceTransformersTokenTextSplitter`, démo *Tokenizer Mismatch*) → structure-aware → Contextual Retrieval → **Chonkie Semantic + Agentic** (`SlumberChunker` sur Groq) · embeddings MiniLM + similarité cosine/dot/L2 + choix du modèle (BGE-M3, Jina v2…) + **multimodal** (théorique) · vector store Chroma + **démo FAISS `IndexFlatL2`** · retrieval hybride BM25 + RRF · reranker Cross-encoder · prompt augmenté · génération via LangChain **+ variante Python pur (SDK Groq direct)**.
 - **Partie B — Advanced RAG** (45 min) : Lost-in-the-middle reorder + Query Rewriting + Multi-Query + HyDE.
 - **Partie C — Évaluation & Observabilité** (30 min) : RAGas avec LLM-juge Llama 3.3 + cellule LangSmith.
 - **Partie D — Graph RAG (bonus)** (30 min) : extraction entités/relations + graphe NetworkX + retrieval local/global.
@@ -229,7 +239,9 @@ Voir [`04 Agents IA/README.md`](04%20Agents%20IA/README.md) pour le détail des 
 ```
 from-llm-to-agent/
 ├── README.md                                        ← ce fichier
-├── CLAUDE.md                                        ← guide pour Claude Code
+├── setup.md                                         ← procédure d'installation détaillée (Git, conda gai, kernel, dépannage)
+├── requirements.txt                                 ← dépendances unifiées de tout le bootcamp
+├── .env                                             ← clés API centralisées (chargées par python-dotenv)
 ├── from-llm-to-agents.png                           ← image hero
 │
 ├── 01 Fondamentaux LLM/                             ← Jour 1 matin
@@ -241,9 +253,13 @@ from-llm-to-agent/
 │   └── TP/tp2-prompt-engineering.ipynb              (10 parties, ~54 cellules)
 │
 ├── 03 RAG/                                          ← Jour 2
+│   ├── README.md                                    ← overview du module 3
 │   ├── slides/rag.pdf                         (66 pages)
-│   ├── TP/tp3-rag-pipeline-complet.ipynb            (4 parties)
+│   ├── TP/tp3-rag-pipeline-complet.ipynb            (97 cellules, 4 parties)
 │   └── rag-app/                                     ← app de référence FastAPI + Streamlit
+│       ├── README.md · .env · requirements.txt
+│       ├── api.py · dashboard.py · rag_engine.py
+│       └── sample_data/
 │
 └── 04 Agents IA/                                    ← Jour 3
     ├── slides/agents.pdf                            (~ 50 pages)
@@ -265,8 +281,9 @@ from-llm-to-agent/
 |---|---|---|
 | **LLM cloud** | **Groq** + `llama-3.3-70b-versatile` | API gratuite, OpenAI-compatible, inférence ultra-rapide (LPUs) |
 | **LLM locaux (TP 1)** | `SmolLM2-135M`, `Qwen2.5-0.5B`, `Qwen2.5-1.5B` | Démo tokenisation et stratégies de décodage sans GPU |
-| **Embeddings** | `sentence-transformers/all-MiniLM-L6-v2` · `multilingual-MiniLM` · option `bge-m3` | Compromis qualité/vitesse, 384 dims |
-| **Vector store (notebooks)** | **ChromaDB** | HNSW cosine, in-memory, zéro setup |
+| **Embeddings** | `sentence-transformers/all-MiniLM-L6-v2` · `multilingual-MiniLM` · option `bge-m3` · multimodal (théorie : CLIP, Qwen2-VL) | Compromis qualité/vitesse, 384 dims |
+| **Chunking avancé (TP 3)** | `chonkie` (`SemanticChunker`, `SlumberChunker` + `GroqGenie` agentique) | Coupe sémantique et **agentique** au-delà du splitter récursif |
+| **Vector store (notebooks)** | **ChromaDB** + démo **FAISS** (`IndexFlatL2`) | HNSW cosine in-memory, zéro setup ; FAISS pour comparaison exacte |
 | **Vector store (n8n)** | **Qdrant** | Persistance Docker, API REST, intégration n8n native |
 | **Sparse retrieval** | `rank-bm25` | Lexical, pour hybride avec dense |
 | **Reranker** | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Réordonne top-k retrieval |
@@ -276,6 +293,7 @@ from-llm-to-agent/
 | **Frameworks Agents** | **LangChain** + **LangGraph** + **n8n** | Code → workflow contrôlé → no-code |
 | **Outils Agent (TP 4)** | retriever Chroma · Tavily · arXiv · Gmail · Calendar · Drive · Slack | Spectre académique → opérationnel |
 | **App de référence (TP 3)** | FastAPI + Streamlit | Pattern réutilisable pour tout RAG en prod |
+| **Configuration** | `python-dotenv` + `.env` (racine et `rag-app/`) | Clés API centralisées, chargement automatique |
 
 ---
 

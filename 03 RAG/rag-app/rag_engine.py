@@ -42,15 +42,19 @@ from openai import OpenAI
 from langchain_core.documents import Document
 from langchain_community.document_loaders import TextLoader, WebBaseLoader, PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter, MarkdownHeaderTextSplitter
+from dotenv import load_dotenv
+
+# Charge .env depuis le dossier rag-app/ (à côté de ce fichier)
+load_dotenv(Path(__file__).parent / ".env")
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 warnings.filterwarnings("ignore")
 
-# ─── Configuration ────────────────────────────────────────────────────────
-EMBED_MODEL_NAME = "all-MiniLM-L6-v2"
-RERANKER_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-LLM_MODEL = "llama-3.3-70b-versatile"
+# ─── Configuration (surchargeable via .env) ───────────────────────────────
+EMBED_MODEL_NAME = os.environ.get("EMBED_MODEL", "all-MiniLM-L6-v2")
+RERANKER_MODEL_NAME = os.environ.get("RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
+LLM_MODEL = os.environ.get("LLM_MODEL", "llama-3.3-70b-versatile")
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 
 CHUNK_SIZE = 500
@@ -120,7 +124,7 @@ class RAGEngine:
         self.collection = None
         self.bm25_index = None
 
-        # Graph RAG
+        # Graph RAGf
         self.kg: Optional[nx.DiGraph] = None
         self.communities: List[Dict] = []
         self.all_entities: List[Entity] = []
